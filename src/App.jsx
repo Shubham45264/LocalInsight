@@ -4,10 +4,13 @@ import Form from './pages/Form';
 import Map from './pages/Map';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Navbar from './components/Navbar';
 
 function App() {
   return (
     <>
+    <Navbar/>
+    
     <Routes>
       <Route path="/" element={<Home/>} />
       <Route path="/map" element={<Map/>} />
