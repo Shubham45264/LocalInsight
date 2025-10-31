@@ -1,13 +1,26 @@
-import React from "react";
+import React, { useEffect } from "react";
 import Sidebar from "../../components/Sidebar.jsx";
 import LocationAnalysisCard from "../../components/LocationAnalysisCard.jsx";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/auth.jsx";
 
 function Dashboard() {
   const location = useLocation();
-  const locations = location.state?.locations || [];
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
+  // Get initial locations from either location.state or localStorage
+  const storedLocations = JSON.parse(localStorage.getItem("dashboardLocations")) || [];
+  const locations = location.state?.locations || storedLocations;
+
+  // If new data comes from navigation (i.e., after prediction), update localStorage
+  useEffect(() => {
+    if (location.state?.locations && location.state.locations.length > 0) {
+      localStorage.setItem("dashboardLocations", JSON.stringify(location.state.locations));
+    }
+  }, [location.state]);
+
+  // Function to handle "View on Map" button
   const handleGoToMap = () => {
     if (locations.length > 0) {
       navigate("/map", { state: { locations } });
@@ -24,10 +37,10 @@ function Dashboard() {
       {/* Main Content */}
       <main className="flex-1 bg-gradient-to-br from-black via-indigo-950 to-black p-8">
         <h1 className="text-3xl font-semibold text-gray-300">
-          Welcome to Your Dashboard
+          Welcome {currentUser?.displayName || "User"}!
         </h1>
 
-        {/* Single button below heading */}
+        {/* Button to go to map */}
         <div className="mt-4">
           <button
             onClick={handleGoToMap}
@@ -37,6 +50,7 @@ function Dashboard() {
           </button>
         </div>
 
+        {/* Locations Grid */}
         {locations.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
             {locations.map((loc, index) => (

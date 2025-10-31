@@ -1,5 +1,7 @@
-import React from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react"
 import { motion } from "framer-motion";
+
+const LazyImage = lazy(() => import("./LazyImage.jsx"));
 
 // --- Icon Components ---
 const UsersIcon = ({ className }) => (
@@ -109,8 +111,8 @@ function LocationAnalysisCard({ data }) {
 
   return (
     <motion.div
-      className="bg-gray-900/70 backdrop-blur-md text-gray-100 p-6 rounded-2xl shadow-xl max-w-3xl mx-auto my-6 hover:shadow-cyan-700/40 border border-gray-700"
-      initial={{ opacity: 0, y: 40 }}
+      className={`${isUserFormResult ? "col-span-1" : "col-span-full"
+        } bg-gray-900/70 backdrop-blur-md text-gray-100 p-6 rounded-2xl shadow-xl mx-auto my-6 hover:shadow-cyan-700/40 border border-gray-700 w-full`}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6, ease: "easeOut" }}
@@ -156,6 +158,16 @@ const UserFormCardContent = ({ data, formatNumber }) => (
 
 // --- CityData Layout (With Gemini Insight) ---
 const CityDataFormCardContent = ({ data }) => {
+  const [shops, setShops] = useState(data.shops || []);
+
+  useEffect(() => {
+    // Handle both first load and async updates
+    if (data && Array.isArray(data.shops)) {
+      setShops([...data.shops]); // clone to trigger re-render
+    }
+  }, [JSON.stringify(data.shops)]); // deep watch
+
+
   const successCategory = data.predicted_category || "N/A";
   let categoryColor = "bg-gray-500";
   if (successCategory.toLowerCase() === "high") categoryColor = "bg-green-500";
@@ -163,39 +175,132 @@ const CityDataFormCardContent = ({ data }) => {
   else if (successCategory.toLowerCase() === "low") categoryColor = "bg-red-500";
 
   return (
-    <>
-      <h2 className="text-3xl font-bold text-white mb-4 capitalize">
-        {data.city || data.City}
-      </h2>
-      <div className="space-y-4">
-        <InfoBlock icon={<BriefcaseIcon className="w-6 h-6 text-cyan-400" />} label="Business Type" value={data.product_type} />
-        <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
+    <div className="flex flex-col lg:flex-row justify-center gap-10  w-full p-5">
+
+      {/* 🟩 Left Card */}
+      <motion.div
+        className="flex-[1.1] bg-gradient-to-br from-gray-900/60 to-gray-800/60 border border-cyan-700/40 rounded-2xl p-8 shadow-xl max-w-2xl w-full"
+        initial={{ opacity: 0, x: -40 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2 className="text-3xl font-bold text-white mb-6 capitalize">
+          {data.city || data.City}
+        </h2>
+
+        {/* Business Type */}
+        <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg mb-4">
+          <div className="flex items-center space-x-3">
+            <BriefcaseIcon className="w-6 h-6 text-cyan-400" />
+            <span className="text-gray-300">Business Type</span>
+          </div>
+          <span className="text-white font-semibold capitalize">
+            {data.product_type}
+          </span>
+        </div>
+
+        {/* Success Chances */}
+        <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg mb-6">
           <div className="flex items-center space-x-3">
             <ZapIcon className="w-6 h-6 text-cyan-400" />
             <span className="text-gray-300">Success Chances</span>
           </div>
-          <span className={`font-semibold text-white capitalize px-3 py-1 rounded-full text-sm ${categoryColor}`}>
+          <span
+            className={`font-semibold text-white capitalize px-3 py-1 rounded-full text-sm ${categoryColor}`}
+          >
             {data.predicted_category}
           </span>
         </div>
 
-        {/* ✅ AI Insights Section */}
+        {/* AI Business Insight */}
         {data.insights && (
           <motion.div
-            className="mt-6 bg-gradient-to-br from-cyan-900/30 to-gray-800/50 border border-cyan-700/40 p-4 rounded-xl text-gray-200 shadow-inner"
-            initial={{ opacity: 0, y: 30 }}
+            className="bg-gradient-to-br from-cyan-900/30 to-gray-800/50 border border-cyan-700/40 p-6 rounded-xl text-gray-200 shadow-inner"
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
+            transition={{ duration: 0.6 }}
           >
-            <h3 className="text-lg font-semibold text-cyan-400 mb-2">AI Business Insight</h3>
-            <p className="text-sm leading-relaxed whitespace-pre-line">{data.insights}</p>
+            <h3 className="text-lg font-semibold text-cyan-400 mb-3">
+              AI Business Insight
+            </h3>
+            <p className="text-sm leading-relaxed whitespace-pre-line">
+              {data.insights}
+            </p>
           </motion.div>
         )}
-      </div>
-    </>
+      </motion.div>
+
+      {/* 🟦 Right Card */}
+      {shops && shops.length > 0 && (
+        <motion.div
+          className="flex-[1.2] bg-gradient-to-br from-gray-900/60 to-gray-800/60 border border-cyan-700/40 rounded-2xl p-8 shadow-xl w-full max-w-5xl"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <h3 className="text-2xl font-bold text-white mb-4">
+            Success Stories & Photos
+          </h3>
+
+          <p className="text-sm text-gray-300 mb-8">
+            Here are three short success stories from{" "}
+            <b>{data.city}</b>:
+          </p>
+
+          <div className="flex flex-col gap-6">
+            {shops.map((shop, index) => (
+              <div
+                key={index}
+                className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 bg-gray-800/60 rounded-xl border border-gray-700/50 hover:shadow-md hover:shadow-cyan-700/20 transition p-4"
+              >
+                {/* Left Details */}
+                <div className="flex-1 text-left">
+                  <h4 className="text-lg font-semibold text-white mb-1">{shop.title}</h4>
+                  <p className="text-gray-400 text-sm mb-2">{shop.address}</p>
+                  <p className="text-yellow-400 text-sm mb-2">
+                    ⭐ {shop.rating || "N/A"} ({shop.reviews || 0} reviews)
+                  </p>
+                  <p className="text-gray-300 text-sm mb-3 leading-relaxed">
+                    {shop.description ||
+                      "This business has made a mark through innovation, service, and customer satisfaction in the region."}
+                  </p>
+                  <a
+                    href={shop.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-cyan-400 text-sm font-medium hover:underline"
+                  >
+                    View on Maps →
+                  </a>
+                </div>
+
+                {/* Right Image */}
+                <div className="w-full sm:w-48 h-36 flex-shrink-0">
+                  <Suspense
+                    fallback={
+                      <div className="w-full h-full rounded-lg bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 animate-pulse">
+                        <p className="text-gray-400 text-sm">Loading image...</p>
+                      </div>
+                    }
+                  >
+                    <LazyImage
+                      key={`${shop.title}-${shop.thumbnail}`}
+                      src={shop.thumbnail || "https://via.placeholder.com/150?text=No+Image"}
+                      alt={shop.title}
+                      className="w-full h-full"
+                    />
+
+                  </Suspense>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+    </div>
   );
 };
-
 // --- Reusable Blocks ---
 const InfoRow = ({ icon, label, value, capitalize = false }) => (
   <div className="flex items-center justify-between">

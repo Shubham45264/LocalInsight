@@ -6,6 +6,7 @@ from flask_cors import CORS
 import os
 from dotenv import load_dotenv  # ✅ Load environment variables
 import google.generativeai as genai
+import requests
 
 # 🔹 Initialize Flask and enable CORS
 app = Flask(__name__)
@@ -14,8 +15,104 @@ CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
 # 🔹 Load environment variables from .env file
 load_dotenv()
 
+# -------- Configuration --------
+SERPAPI_KEY = os.getenv("SERP_API_KEY")  # <--- set this in your environment
+SERPAPI_URL = "https://serpapi.com/search"
+
 # 🔹 Configure Gemini API key
 api_key = os.getenv("GEMINI_API_KEY")
+
+# -------- Helper: call SerpAPI for local results --------
+def fetch_top_shops_from_serpapi(city: str, category: str, top_n: int = 3):
+    """
+    Query SerpAPI (Google Maps engine) for 'category in city' and return a list of shop dicts.
+    Each shop dict: { title, address, rating, reviews_count, thumbnail, link, reviews[] }
+    """
+    if not SERPAPI_KEY:
+        return {"error": "SERPAPI_KEY not configured on server."}
+
+    params = {
+        "engine": "google_maps",
+        "q": f"{category} in {city}",
+        "type": "search",
+        "api_key": SERPAPI_KEY,
+    }
+
+    try:
+        resp = requests.get(SERPAPI_URL, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        return {"error": f"SerpAPI request failed: {str(e)}"}
+
+    results = []
+    # SerpAPI returns 'local_results' or 'local_results' may be nested under 'local_results' keys.
+    local_results = data.get("local_results") or data.get("local_results", []) or data.get("places_results") or []
+
+    # fallback: SerpAPI sometimes returns 'organic_results' with place info; handle defensively
+    if not local_results:
+        # try alternate key names
+        local_results = data.get("maps_results") or data.get("places") or []
+
+    # Parse top results
+    for item in (local_results or [])[:top_n]:
+        # fields vary by engine/version, so use get with fallbacks
+        title = item.get("title") or item.get("name") or item.get("position") or "Unknown"
+        address = item.get("address") or item.get("snippet") or item.get("vicinity") or item.get("locality") or ""
+        rating = item.get("rating") or item.get("gps_rating") or None
+
+        # SerpAPI may provide 'reviews' list or 'review_count'
+        reviews_list = item.get("reviews") or item.get("reviews_snippet") or []
+        if isinstance(reviews_list, list):
+            reviews_count = len(reviews_list)
+        else:
+            # sometimes there's direct review_count or 'reviews' is an int
+            reviews_count = item.get("review_count") or item.get("reviews_count") or None
+            if isinstance(reviews_count, str) and reviews_count.isdigit():
+                reviews_count = int(reviews_count)
+
+        # Thumbnail/photo: SerpAPI might provide 'thumbnail' or 'photo' or 'thumbnail_src'
+        thumbnail = (
+            item.get("thumbnail")
+            or item.get("thumbnail_src")
+            or (item.get("photos") and item.get("photos")[0].get("src") if item.get("photos") else None)
+            or item.get("image")
+        )
+
+        # Link to maps (if available)
+        link = item.get("link") or item.get("maps_link") or item.get("place_id")
+        # If place_id present but not link, create google maps URL
+        if link and link.startswith("ChI") and not link.startswith("http"):
+            link = f"https://www.google.com/maps/search/?api=1&query=google&query_place_id={link}"
+
+        # Flatten review snippets (if any) to simple list of dicts (text, user, rating)
+        parsed_reviews = []
+        if isinstance(reviews_list, list):
+            for r in reviews_list[:5]:  # cap to 5 reviews to reduce payload
+                parsed_reviews.append({
+                    "author": r.get("author") or r.get("user") or None,
+                    "rating": r.get("rating"),
+                    "text": r.get("text") or r.get("snippet") or None,
+                })
+                
+        # ✅ Ensure thumbnail is valid
+        if not thumbnail or not str(thumbnail).startswith("http"):
+           thumbnail = "https://via.placeholder.com/400x300?text=No+Image+Available"
+        
+        print(f"✅ {title} → {thumbnail}")
+        
+        results.append({
+            "title": title,
+            "address": address,
+            "rating": rating,
+            "reviews_count": reviews_count,
+            "thumbnail": thumbnail,
+            "link": link,
+            "reviews": parsed_reviews,
+        })
+
+    return {"results": results}
+
 if api_key:
     try:
         genai.configure(api_key=api_key)
@@ -151,13 +248,29 @@ def predict_city():
             print(f"Error during Gemini generation: {e}")
             ai_summary = "AI summary unavailable due to generation issue."
             
+    # Fetch top shops via SerpAPI
+    serp_res = fetch_top_shops_from_serpapi(city=city, category=product_type, top_n=3)
+    if "error" in serp_res:
+        # Return prediction but include serpapi error info (frontend can decide)
+        response_payload = {
+            "city": city,
+            "product_type": product_type,
+            "predicted_category": prediction,
+            "shops": [],
+            "serpapi_error": serp_res["error"]
+        }
+        return jsonify(response_payload), 200
+
+    shops = serp_res.get("results", [])
+
 
     # Final response
     final_response = {
         "city": city,
         "product_type": product_type,
         "predicted_category": prediction,
-        "insights": ai_summary
+        "insights": ai_summary,
+        "shops": shops
     }
 
     return jsonify(make_json_serializable(final_response))
@@ -165,3 +278,13 @@ def predict_city():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
+# package name 
+# flask 
+# flask-cors 
+# flask-restful 
+# scikit-learn 1.6.1
+# dotenv
+# google
+# google-generativeai
+# requests

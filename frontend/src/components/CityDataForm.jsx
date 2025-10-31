@@ -8,6 +8,7 @@ const CityDataForm = () => {
     business_category: "",
     city: "",
   });
+  const [loading, setLoading] = useState(false); // ✅ new state for loading
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -15,6 +16,8 @@ const CityDataForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true); // ✅ show loading screen
+
     try {
       const response = await fetch("http://127.0.0.1:5000/api/predict_city", {
         method: "POST",
@@ -26,16 +29,15 @@ const CityDataForm = () => {
 
       if (response.ok) {
         console.log("Frontend Prediction:", data);
-
-        // ✅ Navigate to Dashboard and send data as location list
         navigate("/dashboard", { state: { locations: [data] } });
       } else {
-        // ⚠️ Show error message properly
         alert(`Prediction failed: ${data.error || "Unknown error"}`);
       }
     } catch (error) {
       console.error("Error:", error);
       alert("Failed to fetch prediction. Please check the backend connection.");
+    } finally {
+      setLoading(false); // ✅ hide loading screen
     }
   };
 
@@ -53,6 +55,20 @@ const CityDataForm = () => {
 
   return (
     <>
+      {/* ✅ Fullscreen Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-50">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+            className="w-16 h-16 border-4 border-t-transparent border-cyan-400 rounded-full"
+          />
+          <p className="mt-6 text-cyan-300 text-lg font-medium">
+            Evaluating city data...
+          </p>
+        </div>
+      )}
+
       <motion.form
         onSubmit={handleSubmit}
         initial={{ opacity: 0, y: 40 }}
