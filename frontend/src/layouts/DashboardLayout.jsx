@@ -12,8 +12,7 @@ const DashboardLayout = () => {
       <Navbar />
 
       {/* Main Layout Container */}
-      {/* Main Layout Container */}
-      <main className="flex-1 flex flex-col pt-16 overflow-hidden relative">
+      <main className="flex-1 flex flex-col pt-24 overflow-hidden relative">
         {/* Welcome Message moved to top of main content if needed, or rely on Dashboard page's header */}
         <Outlet />
       </main>
